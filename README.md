@@ -103,3 +103,5 @@ python preprocess.py
 bash scripts/run_main.sh ./config/csqa.config
 ```
 Training process and final evaluation results would be stored in './saved_models/'
+
+--encoder roberta-large --dataset csqa --inhouse 1 --max_seq_len 80 --encoder_lr 2e-6 --decoder_lr 1e-3 --batch_size 16 --dropoutm 0.1 --save_model 0 --seed 0
