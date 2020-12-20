@@ -11,8 +11,7 @@ def _get_path_embedding_greedy(dataset, generator, args, tokenizer=None, output_
     generator.eval()
     epoch_iterator = tqdm(dataloader, desc="Path Generation")
     path_embeddings = []
-    for step, context in enumerate(epoch_iterator):
-
+    for context in epoch_iterator:
         # questions, contexts, answers, choices = batch
         context = context[0].to(args.device)
 

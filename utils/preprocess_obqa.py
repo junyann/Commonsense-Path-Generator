@@ -6,7 +6,6 @@ import random
 from tqdm import tqdm
 from transformers import *
 
-
 class PreprocessData_Ground(object):
     """docstring for PreprocessData"""
     def __init__(self, data_name, gpt_tokenizer_type, context_len):
