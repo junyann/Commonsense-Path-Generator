@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--end_idx", default=-1, type=int)
 
     # model
-    parser.add_argument('--batch_size', type=int, default=1024)
+    parser.add_argument('--batch_size', type=int, default=1024)  # 512 for non-titan
     parser.add_argument('--output_len', type=int, default=31)
     parser.add_argument('--context_len', type=int, default=16)
 

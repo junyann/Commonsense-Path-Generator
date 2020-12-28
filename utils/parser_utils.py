@@ -1,4 +1,4 @@
-import argparse
+import configargparse
 from utils.utils import *
 from modeling.modeling_encoder import MODEL_NAME_TO_CLASS
 
@@ -123,7 +123,8 @@ def add_additional_arguments(parser):
 
 def get_parser():
     """A helper function that handles the arguments that all models share"""
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = configargparse.ArgumentParser()
+    parser.add_argument('--config', is_config_file=True, help='Config file path.')
     add_data_arguments(parser)
     add_encoder_arguments(parser)
     add_optimization_arguments(parser)

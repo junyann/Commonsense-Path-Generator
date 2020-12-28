@@ -1,7 +1,9 @@
 import random
 from multiprocessing import cpu_count
+from datetime import datetime
 
 from transformers import *
+import logging
 
 from modeling.modeling_rn_pg import *
 from utils.optimization_utils import OPTIMIZER_CLASSES
@@ -43,7 +45,7 @@ def main():
     parser = get_parser()
     args, _ = parser.parse_known_args()
     parser.add_argument('--mode', default='train', choices=['train', 'eval', 'pred'], help='run training or evaluation')
-    parser.add_argument('--save_dir', default=f'./saved_models/', help='model output directory')
+    parser.add_argument('--save_dir', default=None, help='model output directory')
     # parser.add_argument('--gen_dir', type=str)
     # parser.add_argument('--gen_id', type=int)
 
@@ -95,7 +97,6 @@ def main():
     parser.add_argument('--gpu_device', type=str, default='0')
     parser.add_argument('--grad_step', default=1, type=int)
 
-    parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='show this help message and exit')
     args = parser.parse_args()
     if args.debug:
         parser.set_defaults(batch_size=1, log_interval=1, eval_interval=5)
@@ -104,12 +105,28 @@ def main():
     elif args.ablation == 'mrloss':
         parser.set_defaults(loss='margin_rank')
     args = parser.parse_args()
-    print(args)
+    if args.save_dir is None:
+        args.save_dir = f"./saved_models/{args.dataset}/{args.encoder}_elr{args.encoder_lr}_dlr{args.decoder_lr}_d{args.dropoutm}_b{args.batch_size}_s{args.seed}"
+    os.makedirs(args.save_dir, exist_ok=True)
 
     find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.train_concepts, args.train_rel_paths, args.nprocs, args.use_cache)
     find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.dev_concepts, args.dev_rel_paths, args.nprocs, args.use_cache)
     if args.test_statements is not None:
         find_relational_paths(args.cpnet_vocab_path, args.cpnet_graph_path, args.test_concepts, args.test_rel_paths, args.nprocs, args.use_cache)
+
+    unique_str = datetime.now().strftime("%m%d_%H%M%S.%f")
+    log_name = unique_str + '.log'
+    log_path = os.path.join(args.save_dir, log_name)
+    check_path(log_path)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(message)s",
+        handlers=[
+            logging.FileHandler(log_path),
+            logging.StreamHandler()
+        ]
+    )
+    args.save_file_name = unique_str + '.pt'
 
     if args.mode == 'train':
         train(args)
@@ -122,7 +139,7 @@ def main():
 
 
 def train(args):
-    print(args)
+    logging.info(args)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -143,7 +160,7 @@ def train(args):
     ###################################################################################################
 
     if 'lm' in args.ent_emb:
-        print('Using contextualized embeddings for concepts')
+        logging.info('Using contextualized embeddings for concepts')
         use_contextualized, cp_emb = True, None
     else:
         use_contextualized = False
@@ -157,7 +174,7 @@ def train(args):
     rel_emb = cal_2hop_rel_emb(rel_emb)
     rel_emb = torch.tensor(rel_emb)
     relation_num, relation_dim = rel_emb.size(0), rel_emb.size(1)
-    # print('| num_concepts: {} | num_relations: {} |'.format(concept_num, relation_num))
+    # logging.info('| num_concepts: {} | num_relations: {} |'.format(concept_num, relation_num))
 
     device = torch.device('cuda:{}'.format(args.gpu_device) if torch.cuda.is_available() else 'cpu')
 
@@ -191,10 +208,10 @@ def train(args):
     try:
         model.to(device)
     except RuntimeError as e:
-        print(e)
-        print('best dev acc: 0.0 (at epoch 0)')
-        print('final test acc: 0.0')
-        print()
+        logging.info(e)
+        logging.info('best dev acc: 0.0 (at epoch 0)')
+        logging.info('final test acc: 0.0')
+        logging.info('')
         return
 
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -214,14 +231,14 @@ def train(args):
         max_steps = int(args.n_epochs * (dataset.train_size() / args.batch_size))
         scheduler = get_linear_schedule_with_warmup(optimizer, warmup_steps=args.warmup_steps, t_total=max_steps)
 
-    print('parameters:')
+    logging.info('parameters:')
     for name, param in model.decoder.named_parameters():
         if param.requires_grad:
-            print('\t{:45}\ttrainable\t{}'.format(name, param.size()))
+            logging.info('\t{:45}\ttrainable\t{}'.format(name, param.size()))
         else:
-            print('\t{:45}\tfixed\t{}'.format(name, param.size()))
+            logging.info('\t{:45}\tfixed\t{}'.format(name, param.size()))
     num_params = sum(p.numel() for p in model.decoder.parameters() if p.requires_grad)
-    print('\ttotal:', num_params)
+    logging.info(f'\ttotal: {num_params}')
 
     if args.loss == 'margin_rank':
         loss_func = nn.MarginRankingLoss(margin=0.1, reduction='mean')
@@ -232,8 +249,8 @@ def train(args):
     #   Training                                                                                      #
     ###################################################################################################
 
-    print()
-    print('-' * 71)
+    logging.info('')
+    logging.info('-' * 71)
     global_step, best_dev_epoch = 0, 0
     best_dev_acc, final_test_acc, total_loss = 0.0, 0.0, 0.0
     start_time = time.time()
@@ -244,10 +261,10 @@ def train(args):
     linear_grad = []
     for epoch_id in range(args.n_epochs):
         if epoch_id == args.unfreeze_epoch:
-            print('encoder unfreezed')
+            logging.info('encoder unfreezed')
             unfreeze_net(model.encoder)
         if epoch_id == args.refreeze_epoch:
-            print('encoder refreezed')
+            logging.info('encoder refreezed')
             freeze_net(model.encoder)
         model.train()
         for qids, labels, *input_data in dataset.train():
@@ -281,8 +298,8 @@ def train(args):
             if (global_step + 1) % args.log_interval == 0:
                 total_loss /= args.log_interval
                 ms_per_batch = 1000 * (time.time() - start_time) / args.log_interval
-                print('| step {:5} |  lr: {:9.7f} | loss {:7.4f} | ms/batch {:7.2f} |'.format(global_step, scheduler.get_lr()[0], total_loss, ms_per_batch))
-                # print('| rel_grad: {:1.2e} | linear_grad: {:1.2e} |'.format(sum(rel_grad) / len(rel_grad), sum(linear_grad) / len(linear_grad)))
+                logging.info('| step {:5} |  lr: {:9.7f} | loss {:7.4f} | ms/batch {:7.2f} |'.format(global_step, scheduler.get_lr()[0], total_loss, ms_per_batch))
+                # logging.info('| rel_grad: {:1.2e} | linear_grad: {:1.2e} |'.format(sum(rel_grad) / len(rel_grad), sum(linear_grad) / len(linear_grad)))
                 total_loss = 0
                 rel_grad = []
                 linear_grad = []
@@ -292,9 +309,9 @@ def train(args):
         model.eval()
         dev_acc = evaluate_accuracy(dataset.dev(), model)
         test_acc = evaluate_accuracy(dataset.test(), model) if dataset.test_size() > 0 else 0.0
-        print('-' * 71)
-        print('| epoch {:5} | dev_acc {:7.4f} | test_acc {:7.4f} |'.format(epoch_id, dev_acc, test_acc))
-        print('-' * 71)
+        logging.info('-' * 71)
+        logging.info('| epoch {:5} | dev_acc {:7.4f} | test_acc {:7.4f} |'.format(epoch_id, dev_acc, test_acc))
+        logging.info('-' * 71)
         with open(log_path, 'a') as fout:
             fout.write('{},{},{}\n'.format(global_step, dev_acc, test_acc))
         if dev_acc >= best_dev_acc:
@@ -303,19 +320,19 @@ def train(args):
             best_dev_epoch = epoch_id
             if args.save_model == 1:
                 torch.save([model, args], model_path)
-            print(f'model saved to {model_path}')
+            logging.info(f'model saved to {model_path}')
         model.train()
         start_time = time.time()
         if epoch_id > args.unfreeze_epoch and epoch_id - best_dev_epoch >= args.max_epochs_before_stop:
             break
     # except (KeyboardInterrupt, RuntimeError) as e:
-    #     print(e)
+    #     logging.info(e)
 
-    print()
-    print('training ends in {} steps'.format(global_step))
-    print('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
-    print('final test acc: {:.4f}'.format(final_test_acc))
-    print()
+    logging.info('')
+    logging.info('training ends in {} steps'.format(global_step))
+    logging.info('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
+    logging.info('final test acc: {:.4f}'.format(final_test_acc))
+    logging.info('')
 
 
 def eval(args):
@@ -333,7 +350,7 @@ def pred(args):
     model.eval()
 
     if 'lm' in args.ent_emb:
-        print('Using contextualized embeddings for concepts')
+        logging.info('Using contextualized embeddings for concepts')
         use_contextualized, cp_emb = True, None
     else:
         use_contextualized = False
@@ -351,8 +368,8 @@ def pred(args):
                                       train_adj_path=args.train_adj, dev_adj_path=args.dev_adj, test_adj_path=args.test_adj,
                                       train_node_features_path=args.train_node_features, dev_node_features_path=args.dev_node_features,
                                       test_node_features_path=args.test_node_features, node_feature_type=args.node_feature_type)
-    print("***** generating model predictions *****")
-    print(f'| dataset: {old_args.dataset} | save_dir: {args.save_dir} |')
+    logging.info("***** generating model predictions *****")
+    logging.info(f'| dataset: {old_args.dataset} | save_dir: {args.save_dir} |')
 
     for output_path, data_loader in ([(test_pred_path, dataset.test())] if dataset.test_size() > 0 else []):
         with torch.no_grad(), open(output_path, 'w') as fout:
@@ -361,8 +378,8 @@ def pred(args):
                 for qid, pred_label in zip(qids, logits.argmax(1)):
                     # fout.write('{},{}\n'.format(qid, chr(ord('A') + pred_label.item())))
                     fout.write('{}\n'.format(pred_label))
-        print(f'predictions saved to {output_path}')
-    print('***** prediction done *****')
+        logging.info(f'predictions saved to {output_path}')
+    logging.info('***** prediction done *****')
 
 if __name__ == '__main__':
     main()
