@@ -150,10 +150,10 @@ class LMRelationNet(nn.Module):
                  concept_num, concept_dim, relation_num, relation_dim, concept_in_dim, hidden_size, num_hidden_layers,
                  num_attention_heads, fc_size, num_fc_layers, dropout, pretrained_concept_emb=None,
                  pretrained_relation_emb=None, freeze_ent_emb=True, init_range=0, ablation=None,
-                 use_contextualized=False, emb_scale=1.0, encoder_config={}):
+                 use_contextualized=False, emb_scale=1.0, encoder_config={}, encoder_pooler='cls'):
         super().__init__()
         self.use_contextualized = use_contextualized
-        self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, **encoder_config)
+        self.encoder = TextEncoder(model_name, from_checkpoint=from_checkpoint, encoder_pooler=encoder_pooler, **encoder_config)
         self.decoder = RelationNet(concept_num, concept_dim, relation_num, relation_dim, self.encoder.sent_dim, concept_in_dim,
                                    hidden_size, num_hidden_layers, num_attention_heads,
                                    fc_size, num_fc_layers, dropout, pretrained_concept_emb, pretrained_relation_emb,

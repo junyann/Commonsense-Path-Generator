@@ -78,10 +78,11 @@ class LSTMTextEncoder(nn.Module):
 class TextEncoder(nn.Module):
     valid_model_types = set(MODEL_CLASS_TO_NAME.keys())
 
-    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, **kwargs):
+    def __init__(self, model_name, output_token_states=False, from_checkpoint=None, encoder_pooler='cls', **kwargs):
         super().__init__()
         self.model_type = MODEL_NAME_TO_CLASS[model_name]
         self.output_token_states = output_token_states
+        self.encoder_pooler = encoder_pooler
         assert not self.output_token_states or self.model_type in ('bert', 'roberta', 'albert')
 
         if self.model_type in ('lstm',):
@@ -137,5 +138,8 @@ class TextEncoder(nn.Module):
         else:
             if self.output_token_states:
                 return hidden_states, output_mask
-            sent_vecs = hidden_states[:, 0]
+            if self.encoder_pooler == 'cls':
+                sent_vecs = hidden_states[:, 0]
+            else:
+                sent_vecs = (hidden_states * attention_mask.unsqueeze(-1)).sum(1) / attention_mask.sum(1).unsqueeze(-1)
         return sent_vecs, all_hidden_states

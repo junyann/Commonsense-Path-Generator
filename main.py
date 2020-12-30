@@ -1,6 +1,8 @@
 import random
 from multiprocessing import cpu_count
 from datetime import datetime
+import socket
+import sys
 
 from transformers import *
 import logging
@@ -97,6 +99,8 @@ def main():
     parser.add_argument('--gpu_device', type=str, default='0')
     parser.add_argument('--grad_step', default=1, type=int)
 
+    parser.add_argument('--encoder_pooler', default='cls', choices=['cls', 'mean'])
+
     args = parser.parse_args()
     if args.debug:
         parser.set_defaults(batch_size=1, log_interval=1, eval_interval=5)
@@ -139,6 +143,8 @@ def main():
 
 
 def train(args):
+    logging.info(f'{socket.gethostname()}: {os.environ["CUDA_VISIBLE_DEVICES"] if "CUDA_VISIBLE_DEVICES" in os.environ else "unknown"}')
+    logging.info('python ' + ' '.join(sys.argv))
     logging.info(args)
 
     random.seed(args.seed)
@@ -203,7 +209,7 @@ def train(args):
                           fc_size=args.fc_dim, num_fc_layers=args.fc_layer_num, dropout=args.dropoutm,
                           pretrained_concept_emb=cp_emb, pretrained_relation_emb=rel_emb, freeze_ent_emb=args.freeze_ent_emb,
                           init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
-                          emb_scale=args.emb_scale, encoder_config=lstm_config)
+                          emb_scale=args.emb_scale, encoder_config=lstm_config, encoder_pooler=args.encoder_pooler)
 
     try:
         model.to(device)

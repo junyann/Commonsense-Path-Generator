@@ -93,7 +93,7 @@ def add_encoder_arguments(parser):
     parser.add_argument('--encoder_dropouth', default=0.1, type=float, help='dropout applied to lstm hidden states')
     parser.add_argument('--encoder_pretrained_emb', default='./data/glove/glove.6B.300d.npy', help='path to pretrained emb in .npy format')
     parser.add_argument('--encoder_freeze_emb', default=True, type=bool_flag, nargs='?', const=True, help='freeze lstm input embedding layer')
-    parser.add_argument('--encoder_pooler', default='max', choices=['max', 'mean'], help='pooling function')
+    # parser.add_argument('--encoder_pooler', default='max', choices=['max', 'mean'], help='pooling function')
     args, _ = parser.parse_known_args()
     # parser.set_defaults(encoder_lr=ENCODER_DEFAULT_LR[args.dataset].get(args.encoder, ENCODER_DEFAULT_LR['default']))
 
