@@ -2,6 +2,7 @@ import os
 import pickle
 import torch
 import json
+import random
 from tqdm import tqdm
 from transformers import *
 
@@ -10,9 +11,10 @@ class PreprocessData_Ground(object):
     """docstring for PreprocessData"""
     def __init__(self, data_name, gpt_tokenizer_type, context_len):
         super(PreprocessData_Ground, self).__init__()
-        self.tokenizer = GPT2Tokenizer.from_pretrained(gpt_tokenizer_type)
+        self.data_name = data_name
+        self.tokenizer = GPT2Tokenizer.from_pretrained(gpt_tokenizer_type, cache_dir='../cache/')
         data_dir = os.path.join('./data', data_name)
-        self.ground_path = os.path.join(data_dir, 'ground_token_context{}_{}.pkl'.format(context_len, gpt_tokenizer_type))
+        self.ground_path = os.path.join('./path_embeddings', data_name, 'ground_token_context{}_{}.pkl'.format(context_len, gpt_tokenizer_type))
         self.context_len = context_len
 
         self.tokenizer.add_tokens(['<PAD>'])
@@ -39,33 +41,56 @@ class PreprocessData_Ground(object):
                 pickle.dump(token_dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_context(self, data_path):
+        if self.data_name == 'csqa':
+            num_choice = 5
+            max_qc_num = 5
+            max_ac_num = 1
+        elif self.data_name == 'obqa':
+            num_choice = 4
+            max_qc_num = 6
+            max_ac_num = 6
+        elif self.data_name.startswith('codah'):
+            num_choice = 4
+            max_qc_num = 6
+            max_ac_num = 6
+        elif self.data_name == 'qasc':
+            num_choice = 8
+            max_qc_num = 6
+            max_ac_num = 6
+        else:
+            raise NotImplementedError()
         data_context = []
         question_context = []
         with open(data_path, 'r') as fr:
             for _id, line in enumerate(tqdm(fr)):
                 obj = json.loads(line)
                 qc_list = obj['qc']
-                ac_list = obj['ac']
+                if self.data_name == 'csqa':
+                    ac_list = [obj['ans']]
+                else:
+                    ac_list = obj['ac']
                 choice_context = []
 
-                choice = obj['ans'].replace('_', ' ')
-
-                for qc in qc_list[:5]:
+                sample_qc_num = min(len(qc_list), max_qc_num)
+                sample_ac_num = min(len(ac_list), max_ac_num)
+                sample_qc_list = random.sample(qc_list, sample_qc_num)
+                sample_ac_list = random.sample(ac_list, sample_ac_num)
+                for qc in sample_qc_list:
                     qc = qc.replace('_', ' ')
-
-                    context = choice + '<SEP>' + qc
-                    context = self.tokenizer.encode(context, add_special_tokens=False)[:self.context_len]
-                    context += [self.PAD] * (self.context_len - len(context))
-
-                    choice_context.append(context)
+                    for ac in sample_ac_list:
+                        ac = ac.replace('_', ' ')
+                        context = ac + '<SEP>' + qc
+                        context = self.tokenizer.encode(context, add_special_tokens=False)[:self.context_len]
+                        context += [self.PAD] * (self.context_len - len(context))
+                        choice_context.append(context)
                 num_context = len(choice_context)
-                for _ in range(5 - num_context):  # make sure each qa pair has 5 evidence
+                for _ in range(max_qc_num * max_ac_num - num_context):
                     _input = [self.PAD] * self.context_len
                     choice_context.append(_input)
                 question_context.append(choice_context)
-                if (_id + 1) % 5 == 0:
+                if (_id + 1) % num_choice == 0:
                     data_context.append(question_context)
                     question_context = []
         data_context = torch.tensor(data_context, dtype=torch.long)
-        return data_context 
+        return data_context
 

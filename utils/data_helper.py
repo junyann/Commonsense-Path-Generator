@@ -1,6 +1,7 @@
 import pickle
 import torch
 from torch.utils.data import Dataset, TensorDataset
+from .preprocess_data import PreprocessData_Ground
 
 
 class TokenDataset(Dataset):
@@ -18,10 +19,6 @@ class DataHelper(object):
     """docstring for DataHelper"""
     def __init__(self, args, load_dataset=True):
         super(DataHelper, self).__init__()
-        if 'csqa' in args.data_dir:
-            from .preprocess_csqa import PreprocessData_Ground
-        elif 'obqa' in args.data_dir:
-            from .preprocess_obqa import PreprocessData_Ground
 
         preprocesser = PreprocessData_Ground(args.data_dir, args.generator_type, args.context_len)
  
