@@ -133,7 +133,11 @@ def main():
     args.save_file_name = unique_str + '.pt'
 
     if args.mode == 'train':
-        train(args)
+        dev_acc, test_acc = train(args)
+        new_file_str = f'dlr{args.decoder_lr}_{dev_acc * 100:.2f}_{test_acc * 100:.2f}_s{args.seed}_{unique_str}'
+        os.rename(log_path, os.path.join(args.save_dir, new_file_str + '.log'))
+        if args.save_model:
+            os.rename(os.path.join(args.save_dir, unique_str + '.pt'), os.path.join(args.save_dir, new_file_str + '.pt'))
     elif args.mode == 'eval':
         eval(args)
     elif args.mode == 'pred':
@@ -327,6 +331,7 @@ def train(args):
     logging.info('best dev acc: {:.4f} (at epoch {})'.format(best_dev_acc, best_dev_epoch))
     logging.info('final test acc: {:.4f}'.format(final_test_acc))
     logging.info('')
+    return best_dev_acc, final_test_acc
 
 
 def eval(args):
