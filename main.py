@@ -153,14 +153,8 @@ def train(args):
     if torch.cuda.is_available() and args.cuda:
         torch.cuda.manual_seed(args.seed)
 
-    config_path = os.path.join(args.save_dir, 'config.json')
-    model_path = os.path.join(args.save_dir, 'model.pt')
-    log_path = os.path.join(args.save_dir, 'log.csv')
-    export_config(args, config_path)
+    model_path = os.path.join(args.save_dir, args.save_file_name)
     check_path(model_path)
-    with open(log_path, 'w') as fout:
-        fout.write('step,train_acc,dev_acc\n')
-
     ###################################################################################################
     #   Load data                                                                                     #
     ###################################################################################################
@@ -211,14 +205,8 @@ def train(args):
                           init_range=args.init_range, ablation=args.ablation, use_contextualized=use_contextualized,
                           emb_scale=args.emb_scale, encoder_config=lstm_config, encoder_pooler=args.encoder_pooler)
 
-    try:
-        model.to(device)
-    except RuntimeError as e:
-        logging.info(e)
-        logging.info('best dev acc: 0.0 (at epoch 0)')
-        logging.info('final test acc: 0.0')
-        logging.info('')
-        return
+
+    model.to(device)
 
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
     grouped_parameters = [
@@ -318,8 +306,6 @@ def train(args):
         logging.info('-' * 71)
         logging.info('| epoch {:5} | dev_acc {:7.4f} | test_acc {:7.4f} |'.format(epoch_id, dev_acc, test_acc))
         logging.info('-' * 71)
-        with open(log_path, 'a') as fout:
-            fout.write('{},{},{}\n'.format(global_step, dev_acc, test_acc))
         if dev_acc >= best_dev_acc:
             best_dev_acc = dev_acc
             final_test_acc = test_acc
@@ -327,9 +313,11 @@ def train(args):
             if args.save_model == 1:
                 torch.save([model, args], model_path)
             logging.info(f'model saved to {model_path}')
+        else:
+            logging.info(f'hit patience {epoch_id - best_dev_epoch}/{args.patience}')
         model.train()
         start_time = time.time()
-        if epoch_id > args.unfreeze_epoch and epoch_id - best_dev_epoch >= args.max_epochs_before_stop:
+        if epoch_id > args.unfreeze_epoch and epoch_id - best_dev_epoch >= args.patience:
             break
     # except (KeyboardInterrupt, RuntimeError) as e:
     #     logging.info(e)

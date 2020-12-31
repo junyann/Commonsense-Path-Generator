@@ -1,0 +1,16 @@
+dataset: codah_fold_2
+inhouse: 0
+
+dropoutm: 0.1
+
+encoder: bert-large-uncased
+encoder_lr: 2e-5
+patience: 6
+batch_size: 16
+max_seq_len: 90
+decoder_lr: 1e-3  # {1e-3, 1e-4}
+mini_batch_size: 1  # 32 for ruby, 8 for titan, 1 for non-titan
+
+seed: 0
+save_dir: codah/codah_bert_fold_2
+save_model: 0

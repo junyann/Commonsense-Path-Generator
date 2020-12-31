@@ -8,4 +8,4 @@ batch_size: 32
 dropoutm: 0.1
 save_model: 0
 seed: 0
-gpu_device: 0
+save_dir: obqa/PathGen
