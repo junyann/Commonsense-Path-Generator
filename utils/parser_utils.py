@@ -52,7 +52,7 @@ def add_data_arguments(parser):
     # dataset specific
     parser.add_argument('-ds', '--dataset', default='csqa', help='dataset name')
     parser.add_argument('-ih', '--inhouse', default=True, type=bool_flag, nargs='?', const=True, help='run in-house setting')
-    parser.add_argument('--inhouse_train_qids', default='/home/jun/project/BinaryGN/data/{dataset}/inhouse_split_qids.txt', help='qids of the in-house training set')
+    parser.add_argument('--inhouse_train_qids', default='/home/jun/project/MHGRN/data/{dataset}/inhouse_split_qids.txt', help='qids of the in-house training set')
     # statements
     parser.add_argument('--ir', default=0, type=int)
     parser.add_argument('--has_test', default=0, type=int)
